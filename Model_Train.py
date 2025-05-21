@@ -97,16 +97,26 @@ def train_models(X_train_raw, y_train, X_test_raw, y_test):
     # ----------------------
     print("\nTraining Random Forest...")
     rf_model = RandomForestClassifier(
-        class_weight='balanced',
-        n_jobs=-1,
-        random_state=42
+    class_weight='balanced',
+    n_jobs=-1,
+    random_state=42
     )
-    rf_model.fit(X_train_scaled, y_train)
+
+    # Hyperparameter grid
+    rf_params = {
+        'n_estimators': [100, 200], 
+        'max_depth': [None, 5, 10],
+        'min_samples_split': [2, 5]
+    }
+
+    # Add GridSearchCV
+    rf_grid = GridSearchCV(rf_model, rf_params, scoring='precision', cv=3, verbose=2)
+    rf_grid.fit(X_train_scaled, y_train)  # Train with scaled data
     
     # Save models
     joblib.dump(xgb_grid.best_estimator_, 'xgb_model.pkl')
     joblib.dump(svm_grid.best_estimator_, 'svm_model.pkl')
-    joblib.dump(rf_model, 'rf_model.pkl')
+    joblib.dump(rf_grid.best_estimator_, 'rf_model.pkl')
     joblib.dump(scaler, 'scaler.pkl')
     
     # Evaluate
@@ -117,7 +127,7 @@ def train_models(X_train_raw, y_train, X_test_raw, y_test):
     evaluate_model(svm_grid.best_estimator_, X_test_scaled, y_test)
     
     print("\nRandom Forest Evaluation:")
-    evaluate_model(rf_model, X_test_scaled, y_test)
+    evaluate_model(rf_grid.best_estimator_, X_test_scaled, y_test)
     
     return xgb_grid.best_estimator_, svm_grid.best_estimator_, rf_model, scaler
 
@@ -133,15 +143,6 @@ def evaluate_model(model, X_test, y_test):
     if y_proba is not None:
         print(f"ROC AUC: {roc_auc_score(y_test, y_proba):.4f}")
     
-    # Feature importance for tree-based models
-    if hasattr(model, 'feature_importances_'):
-        plt.figure(figsize=(10, 6))
-        feat_importances = pd.Series(model.feature_importances_,
-                                   index=['Mean', 'Std', 'Slope',
-                                         'Dominant Freq', 'Spectral Entropy'])
-        feat_importances.nlargest(5).plot(kind='barh')
-        plt.title(f'{model.__class__.__name__} Feature Importance')
-        plt.show()
 
 # ----------------------
 # 4. Main Execution
